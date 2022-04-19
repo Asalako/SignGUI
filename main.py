@@ -101,6 +101,8 @@ class MenuPage(Frame):
 class Dictionary(Frame):
     def __init__(self, master):
         Frame.__init__(self, master)
+        self.vframe = VerticalScrolledFrame(master)
+        self.vframe.pack()
         self.root = master
         self.root.title("Dictionary")
         self.searchbar = None
@@ -110,7 +112,7 @@ class Dictionary(Frame):
         self.searchbar = Entry(
             self, width=20).grid(row=2, column=1,  sticky="W", pady=10)
         
-        self.search_results(self, master)
+        #self.search_results(self, master)
         
     #def create_page(self):
         #Label(self).grid(row=0, sticky="W")
@@ -166,19 +168,19 @@ class VerticalScrolledFrame(Frame):
     def __init__(self, master):
         vscrollbar = Scrollbar(master, orient="vertical")
         vscrollbar.pack(side = "right", fill = "y")
-        canvas = Canvas(self, bd=0, highlightthickness=0,
-                        yscrollcomand=vscrollbar.set)
+        canvas = Canvas(master, bd=0, highlightthickness=0,
+                        yscrollcommand=vscrollbar.set)
         canvas.pack(side="left", fill="both", expand=True)
         vscrollbar.config(command=canvas.yview)
         
         canvas.xview_moveto(0)
         canvas.yview_moveto(0)
         
-        self.frame = interior =Frame(canvas)
-        interior_id = canvas.create_window(0,0, window=self.frame, anchor="NW")
+        self.interior = interior = Frame(canvas)
+        interior_id = canvas.create_window(0,0, window=interior, anchor="nw")
         
-        def configure_canvas(event):
-            size = (interior.winfo_reqwidth(), interior.winfo_reqwidth())
+        def _configure_interior(event):
+            size = (interior.winfo_reqwidth(), interior.winfo_reqheight())
             canvas.config(scrollregion="0 0 %s %s" % size)
             
             if interior.winfo_reqwidth() != canvas.winfo_width():
