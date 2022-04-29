@@ -1,7 +1,9 @@
 from tkinter import Tk, Button, Frame, Label, Entry, Scrollbar, Canvas, Listbox
+from PIL import ImageTK, Image
 from threading import Thread
 #import os, cv2
 import numpy as np
+
 
 class App(Tk):
     def __init__(self):
@@ -142,12 +144,20 @@ class Dictionary(Frame):
         #self.search_results()
         
         #sort the options in alphabetical
-        dict_list = ["yes","no","me", "yes","no","me", "yes","no","me"]
+        dict_list = ["close","good","i love you", "maybe", "ok" ,
+                     "open", "peace", "point", "victory", "zero"]
         
         for option in dict_list:
             self.results.insert("end",option)
             
         self.results.grid(row=3, column=1,  sticky="W", pady=1)
+        
+         
+        imgs = ImageTK.PhotoImage(Image.open("img/"+dict_list[1]+".png"))
+        lbl = Label(image=imgs)
+        lbl.grid(row=2, stick="W", columnspan=2)
+        
+        back_btn = Button(self.root)
         
         self.sel_button = Button(self, text="Select Option",
                                  command=self.select_result)
@@ -156,6 +166,7 @@ class Dictionary(Frame):
     def select_result(self):
         value = self.results.get("anchor")
         print (value)
+
     #def create_page(self):
         #Label(self).grid(row=0, sticky="W")
         #Label(self, text="Dictionary").grid(row=1, sticky="W", pady=10)
