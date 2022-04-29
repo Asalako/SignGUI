@@ -1,5 +1,7 @@
 from tkinter import Tk, Button, Frame, Label
+from PIL import ImageTK, Image
 from threading import Thread
+
 
 class App(Tk):
     def __init__(self):
@@ -93,10 +95,17 @@ class Dictionary(Frame):
         self.root = master
         self.root.title("Dictionary")
         self.searchbar = None
-        dict_list = ["yes","no","me"]
+        dict_list = ["close","good","i love you", "maybe", "ok" ,
+                     "open", "peace", "point", "victory", "zero"]
         
         print('here')
         Label(self, text="Dict").grid(row=1, stick="W", pady=10)
+        
+        imgs = ImageTK.PhotoImage(Image.open("img/"+dict_list[1]+".png"))
+        lbl = Label(image=imgs)
+        lbl.grid(row=2, stick="W", columnspan=2)
+        
+        back_btn = Button(self.root)
         
     #def create_page(self):
         #Label(self).grid(row=0, stick="W")
