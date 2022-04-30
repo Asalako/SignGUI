@@ -1,5 +1,5 @@
 from tkinter import Tk, Button, Frame, Label, Entry, Scrollbar, Canvas, Listbox
-from PIL import ImageTK, Image
+from PIL import ImageTk, Image
 from threading import Thread
 #import os, cv2
 import numpy as np
@@ -21,7 +21,7 @@ class App(Tk):
     def set_window(self, window, w, h):
         window.geometry('%dx%d+400+300'% (w, h))
 
-
+#edit this to run at main
 class Main():
     def __init__(self, master):
         self.root = master
@@ -33,10 +33,10 @@ class Main():
         self.current_frame=None
         self.page_buttons = None
         self.pages = {
-            "menu": 1,
-            "dictionary": Dictionary,
-            "stats": 3,
-            "game": 4
+            "Menu": MenuPage,
+            "Dictionary": Dictionary,
+            "Stats": StatsPage,
+            "Game": GameFrame
             }
         
         #self.vertical_scroll()
@@ -88,7 +88,7 @@ class Main():
         if page == "Dictionary":
             self.current_frame.destroy()
             self.root.title("Dictionary")
-            self.current_frame = Dictionary(self.root)
+            self.current_frame = self.pages["Dictionary"](self.root, self)
             self.current_frame.pack()
             #self.current_frame.grid(row=0)
             #self.current_frame.grid_rowconfigure(0, weight=1)
@@ -96,12 +96,12 @@ class Main():
         elif page == "Stats":
             self.current_frame.destroy()
             self.root.title("Stats")
-            self.current_frame = StatsPage(self.root)
+            self.current_frame = self.pages["Stats"](self.root)
             self.current_frame.pack()
         elif page == "Game":
             self.current_frame.destroy()
             self.root.title("Game")
-            self.current_frame = GameFrame(self.root)
+            self.current_frame = self.pages["Game"](self.root)
             self.current_frame.pack()
         return
     
@@ -113,30 +113,38 @@ class MenuPage(Frame):
     def __init__(self, master):
         Frame.__init__(self, master)
         self.root = master
-        Label(self.root)
+        Label(self)
         Label.grid(row=0, sticky="W")
-        Label(self.root, text="Menu")
+        Label(self, text="Menu")
         Label.grid(row=1, sticky="W", pady=10)
         
         pages = ["dictionary", "stats", "game"]
         self.page_buttons = []
         row = 2
         for page in pages:
-            button = Button(self.page, text=page.capitalize(), command=lambda p=page: self.open_page(p))
+            button = Button(self, text=page.capitalize(),
+                            command=lambda p=page: self.root.open_page(p))
             button.grid(row=row, sticky="W", pady=10)
             self.page_buttons.append(button)
             row+= 1
 
 #needs to be updated with controller 
 class Dictionary(Frame):
-    def __init__(self, master):
+    def __init__(self, master, main):
         Frame.__init__(self, master)
         #self.scrollframe = Main.secframe
         self.root = master
+        self.main = main
         self.searchbar = None
-        self.results = Listbox(self)
+        self.results = None
+        self.dict_list = None
+        self.sel_button = None
         
-        Label(self, text="Dict").grid(row=1, sticky="W", pady=10)
+        self.create_page()
+
+    def create_page(self):
+        self.results = Listbox(self)
+        Label(self, text="Dict").grid(row=1, column=1, sticky="W", pady=10)
         Label(self, text="Search: ").grid(row=2, column=0,  sticky="W", pady=10)
         self.searchbar = Entry(
             self, width=20).grid(row=2, column=1,  sticky="W", pady=10)
@@ -144,25 +152,34 @@ class Dictionary(Frame):
         #self.search_results()
         
         #sort the options in alphabetical
-        dict_list = ["close","good","i love you", "maybe", "ok" ,
+        self.dict_list = ["close","good","i love you", "maybe", "ok" ,
                      "open", "peace", "point", "victory", "zero"]
         
-        for option in dict_list:
+        for option in self.dict_list:
             self.results.insert("end",option)
             
         self.results.grid(row=3, column=1,  sticky="W", pady=1)
         
-         
-        imgs = ImageTK.PhotoImage(Image.open("img/"+dict_list[1]+".png"))
-        lbl = Label(image=imgs)
-        lbl.grid(row=2, stick="W", columnspan=2)
-        
-        back_btn = Button(self.root)
-        
         self.sel_button = Button(self, text="Select Option",
-                                 command=self.select_result)
+                                 command=self.open_page)
         self.sel_button.grid(row=4, column=1,  sticky="W", pady=1)
-    
+
+    def open_page(self):
+        option = self.results.get("anchor")
+        if option == "":
+            return
+        #self.root.title(option)
+        #self.current_frame.destroy() change this after slides have been created
+        self.destroy()
+        self.root.title("Viewer")
+        self.root.current_frame = ViewerFrame(self.root, self, self.dict_list, option)
+        self.root.current_frame.pack()
+        #self.current_frame.grid(row=0, column=0)
+        #self.current_frame.grid(row=0)
+        #self.current_frame.grid_rowconfigure(0, weight=1)
+        #self.current_frame.grid_columnconfigure(0, weight=1)
+        return
+
     def select_result(self):
         value = self.results.get("anchor")
         print (value)
@@ -188,9 +205,6 @@ class Dictionary(Frame):
         
         #view_frame.grid(row=3)
         
-        
-    def open_page(self, o):
-        return
 
 class StatsPage(Frame):
     def __init__(self, master):
@@ -215,6 +229,70 @@ class GameFrame(Frame):
     
     def go_back(self):
         return
+
+class ViewerFrame(Frame):
+    def __init__(self, master, main, dict_list, option):
+        Frame.__init__(self, master)
+        self.root = master
+        self.main = main
+        self.option = option
+        self.options = dict_list
+        #self.canvas = Canvas(self, height=300, width=240,)
+        #self.canvas.grid(row=1, column=1, columnspan=2)
+        Label(self, text="Viewier").grid(row=0, column=1, pady=10)
+        #Label(self, text="Score: %d" % score).grid(row=1, column=0, sticky="w", pady=10)
+        
+        self.imgs = ImageTk.PhotoImage(Image.open("img/"+self.option+".png").resize((300,240),Image.ANTIALIAS))
+        #self.canvas.create_image(anchor="center", image=self.imgs)
+        self.lbl = Label(self, image=self.imgs)
+        self.lbl.grid(row=1, column=1, columnspan=2)
+        
+        self.back_btn = Button(self, text="<<", command=self.prev_img)
+        self.exit_btn = Button(self, text="exit", command=self.go_back)
+        self.forward_btn = Button(self, text=">>", command=self.next_img)
+        
+        self.back_btn.grid(row=2, column=0)
+        self.exit_btn.grid(row=2, column=1)
+        self.forward_btn.grid(row=2, column=2)
+        
+        self.back_button = Button(self, text="Back",
+                                 command=self.go_back)
+        self.back_button.grid(row=3, column=2)
+        pass
+    
+    def go_back(self):
+        self.root.current_frame.destroy()
+        self.root.title("Dictionary")
+        self.main.current_frame = Dictionary(self.root, self.main)
+        self.main.current_frame.pack()
+        return
+    
+    def next_img(self):
+        self.lbl.destroy()
+        x = len(self.options) - 1
+        option_index = self.options.index(self.option)
+        if x == option_index:
+            self.option = self.options[0]
+        else:
+            self.option = self.options[option_index+1]
+        self.imgs = ImageTk.PhotoImage(Image.open(
+            "img/"+self.option+".png").resize((300,240),Image.ANTIALIAS))
+        self.lbl = Label(self, image=self.imgs)
+        self.lbl.grid(row=1, column=1, columnspan=2)
+        
+    def prev_img(self):
+        self.lbl.destroy()
+        x = len(self.options) - 1
+        option_index = self.options.index(self.option)
+        if 0 == option_index:
+            self.option = self.options[x]
+        else:
+            self.option = self.options[option_index-1]
+        self.imgs = ImageTk.PhotoImage(Image.open(
+            "img/"+self.option+".png").resize((300,240),Image.ANTIALIAS))
+        self.lbl = Label(self, image=self.imgs)
+        self.lbl.grid(row=1, column=1, columnspan=2)
+        
 
 class VerticalScrolledFrame(Frame):
     def __init__(self, master, *args, **kw):
