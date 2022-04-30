@@ -219,13 +219,16 @@ class GameFrame(Frame):
     def __init__(self, master):
         Frame.__init__(self, master)
         self.root = master
-        score = 0
+        self.score = None
+        self.back_button = None
+    
+    def create_page:
+        self.score = 0
         Label(self, text="Game").grid(row=1, column=1, pady=10)
         Label(self, text="Score: %d" % score).grid(row=1, column=0, sticky="w", pady=10)
         self.back_button = Button(self, text="Back",
                                  command=self.go_back)
         self.back_button.grid(row=1, column=2, sticky="E", pady=10)
-        pass
     
     def go_back(self):
         return
