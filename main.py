@@ -1,7 +1,8 @@
 from tkinter import Tk, Button, Frame, Label, Entry, Scrollbar, Canvas, Listbox
 from PIL import ImageTk, Image
 from threading import Thread
-#import os, cv2
+#from app import *
+import os, cv2
 import numpy as np
 
 
@@ -221,16 +222,54 @@ class GameFrame(Frame):
         self.root = master
         self.score = None
         self.back_button = None
+        self.camera_lbl = None
+        self.cap = cv2.VideoCapture(0)
+        
+        self.create_page()
     
-    def create_page:
+    def create_page(self):
         self.score = 0
-        Label(self, text="Game").grid(row=1, column=1, pady=10)
-        Label(self, text="Score: %d" % score).grid(row=1, column=0, sticky="w", pady=10)
+        Label(self, text="Game").grid(row=0, column=1, pady=10)
+        Label(self, text="Score: %d" % self.score).grid(row=0, column=0, sticky="w", pady=10)
+        
+        self.ret, self.frame = self.cap.read()
+        #self.cap = cv2.VideoCapture(0)
+        #self.camera_lbl = Label(self)
+        #self.camera_lbl.grid(row=1, column=1, columnspan=2)
+        self.img = Image.fromarray(self.frame)
+        self.photo = ImageTk.PhotoImage(self.img)
+        
+        self.canvas = Canvas(self, width=self.photo.width(), height=self.photo.height())
+        self.canvas.grid(row=1, column=1, columnspan=2)
+        self.canvas.create_image((0,0), image=self.photo, anchor='nw')
+        
+        #while True:
+            #self.frame = self.cap.read()[1]
+            #self.simg = cv2.resize(self.img, (0,0), fx=0.25, fy=0.25)
+            #self.simg_cp = self.simg[:,:,::-1]
+            
+            #self.imgcon = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
+            #self.p = ImageTk.PhotoImage(Image.fromarray(self.imgcon))
+            #self.camera_lbl['image'] = self.p
+            
+            #print('here')
+            
+            #self.root.update()
+        
+        self.update_feed()
+        
         self.back_button = Button(self, text="Back",
                                  command=self.go_back)
-        self.back_button.grid(row=1, column=2, sticky="E", pady=10)
+        self.back_button.grid(row=2, column=2, sticky="E", pady=10)
     
+    def update_feed(self):
+        self.ret, self.frame = self.cap.read()
+        self.img = Image.fromarray(self.frame)
+        self.photo.paste(self.img)
+        self.root.after(10, self.update_feed)
+        
     def go_back(self):
+        self.cap.release()
         return
 
 class ViewerFrame(Frame):
@@ -335,8 +374,8 @@ def get_screen_size(window):
     return window.winfo_screenwidth(), window.winfo.screenheight()
 
 def main():
-    app = App()
+    myapp = App()
 
 if __name__ == "__main__":
-    app = App()
-    #app.mainloop()
+    myapp = App()
+    myapp.mainloop()
