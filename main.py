@@ -1,9 +1,11 @@
 from tkinter import Tk, Button, Frame, Label, Entry, Scrollbar, Canvas, Listbox
 from PIL import ImageTk, Image
 from threading import Thread
-#from app import *
-import os, cv2
+import app
+import os, cv2, csv, itertools, copy, random
 import numpy as np
+import mediapipe as mp
+from model import KeyPointClassifier
 
 
 class App(Tk):
@@ -28,7 +30,7 @@ class Main():
         self.root = master
         self.root.title("Main Menu")
         self.root.resizable(True, True)
-        self.set_window(self.root, 400, 300)
+        self.set_window(self.root, 800, 600)
         self.root.grid_rowconfigure(0, weight=1)
         self.root.grid_columnconfigure(0, weight=1)
         self.current_frame=None
@@ -220,29 +222,91 @@ class GameFrame(Frame):
     def __init__(self, master):
         Frame.__init__(self, master)
         self.root = master
-        self.score = None
+        self.score = 0
         self.back_button = None
         self.camera_lbl = None
+        self.canvas = None
+        self.score_label = None
+        self.gesture_label = Label()
+        self.feedback_label = None
+        self.thumb_label = None
+        self.index_label = None
+        self.middle_label = None
+        self.ring_label = None
+        self.pinky_label = None
+        self.job = None
         self.cap = cv2.VideoCapture(0)
-        
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 720)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 400)
+        self.mp_hands = mp.solutions.hands
+        self.hands = self.mp_hands.Hands(
+            static_image_mode='store_true',
+            max_num_hands=1,
+            min_detection_confidence=0.7,
+            min_tracking_confidence=0.5,
+        )
+
+        self.keypoint_classifier = KeyPointClassifier()
+        with open('model/keypoint_classifier/keypoint_classifier_label.csv',
+                  encoding='utf-8-sig') as f:
+            keypoint_classifier_labels = csv.reader(f)
+            self.keypoint_classifier_labels = [
+                row[0] for row in keypoint_classifier_labels
+            ]
+        self.questions = self.keypoint_classifier_labels.copy()
+        random.shuffle(self.questions)
+        self.answer = ""
+        self.predictions = []
+        self.pred = None
+        self.feedback = {}
+        self.ret = None
+        self.image = None
+        self.input_hand = None
+        self.results = None
+        self.results2 = None
+        self.finger_diff = None
+
+        #self.select_question()
         self.create_page()
-    
+        self.select_question()
+
     def create_page(self):
         self.score = 0
         Label(self, text="Game").grid(row=0, column=1, pady=10)
-        Label(self, text="Score: %d" % self.score).grid(row=0, column=0, sticky="w", pady=10)
-        
-        self.ret, self.frame = self.cap.read()
-        #self.cap = cv2.VideoCapture(0)
-        #self.camera_lbl = Label(self)
-        #self.camera_lbl.grid(row=1, column=1, columnspan=2)
-        self.img = Image.fromarray(self.frame)
+        self.score_label = Label(self, text="Score: %d" % self.score)
+        self.score_label.grid(row=0, column=0, sticky="w", pady=10)
+
+        self.gesture_label = Label(self, text="Gesture:")
+        self.gesture_label.grid(row=0, column=2, pady=10)
+
+        feedback_col = 1
+        #can probs removed self
+        self.feedback_label = Label(self, text="Feedback:")
+        self.feedback_label.grid(row=2, column=feedback_col, pady=10)
+
+        self.thumb_label = Label(self, text="")
+        self.thumb_label.grid(row=3, column=feedback_col, pady=10)
+
+        self.index_label = Label(self, text="")
+        self.index_label.grid(row=4, column=feedback_col, pady=10)
+
+        self.middle_label = Label(self, text="")
+        self.middle_label.grid(row=5, column=feedback_col, pady=10)
+
+        self.ring_label = Label(self, text="")
+        self.ring_label.grid(row=6, column=feedback_col, pady=10)
+
+        self.pinky_label = Label(self, text="")
+        self.pinky_label.grid(row=7, column=feedback_col, pady=10)
+
+        self.temp()
+        self.img = Image.fromarray(self.debug_image)
         self.photo = ImageTk.PhotoImage(self.img)
         
         self.canvas = Canvas(self, width=self.photo.width(), height=self.photo.height())
         self.canvas.grid(row=1, column=1, columnspan=2)
         self.canvas.create_image((0,0), image=self.photo, anchor='nw')
-        
+
         #while True:
             #self.frame = self.cap.read()[1]
             #self.simg = cv2.resize(self.img, (0,0), fx=0.25, fy=0.25)
@@ -260,15 +324,127 @@ class GameFrame(Frame):
         
         self.back_button = Button(self, text="Back",
                                  command=self.go_back)
-        self.back_button.grid(row=2, column=2, sticky="E", pady=10)
-    
+        self.back_button.grid(row=8, column=2, sticky="E", pady=10)
+
+    def select_question(self):
+        if len(self.questions) != 0:
+            self.answer = self.questions[0]
+            self.questions.remove(self.answer)
+            self.gesture_label['text'] = "Gesture: " + self.answer
+        else:
+            self.go_back()
+
+    def temp(self):
+        self.ret, self.image = self.cap.read()
+
+        self.image = cv2.flip(self.image, 1)  # Mirror display
+        self.image = cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB)
+        self.debug_image = copy.deepcopy(self.image)
+        self.results = self.hands.process(self.image)
+
+        if self.results.multi_hand_landmarks is not None:
+            for hand_landmarks, handedness in zip(self.results.multi_hand_landmarks,
+                                                  self.results.multi_handedness):
+
+                # Landmark calculation
+                landmark_list = app.calc_landmark_list(self.debug_image, hand_landmarks)
+                imagec, fs, count = app.fingers(self.image, self.results, self.mp_hands)
+                image_details = [imagec, fs, count]
+                # Conversion to relative coordinates / normalized coordinates
+                pre_processed_landmark_list = app.pre_process_landmark(
+                    landmark_list)
+
+                # Hand sign classification
+                hand_sign_id = self.keypoint_classifier(pre_processed_landmark_list)
+                hand_gesture = self.keypoint_classifier_labels[hand_sign_id]
+                self.input_hand = handedness.classification[0].label[0:].lower()
+                self.predictions.append(hand_gesture)
+
+                if self.check_pred():
+                    self.pred = app.count_pred(self.predictions)
+                    if self.pred == self.answer:
+                        self.update_score()
+                    self.predictions = []
+                    pic_image = cv2.imread('img/%s/%s.png' % (self.input_hand, self.answer.lower()), 0)
+                    pic_image = cv2.cvtColor(pic_image, cv2.COLOR_BGR2RGB)
+                    self.results2 = self.hands.process(pic_image)
+                    #print(self.results2.multi_handedness)
+                    if self.results2.multi_handedness is not None:
+                        pic, fs2, count2 = app.fingers(pic_image, self.results2, self.mp_hands)
+                        pic_details = [pic, fs2, count2]
+                        self.finger_diff = app.compare_input(pic_details, image_details, self.input_hand)
+                        self.update_feedback()
+                    else:
+                        pass
+                        #finger_diff = compare_close(image_details[1])
+                        self.finger_diff = {}
+
+                #print(self.finger_diff)
+
+
+                # Drawing part
+                self.debug_image = app.draw_info_text(
+                    self.debug_image,
+                    handedness,
+                    self.keypoint_classifier_labels[hand_sign_id]
+                )
+        return
+
+    def update_feedback(self):
+        #_Thumb: is open, it should be closed
+        #_Index: is closed, it should be opened
+        #_Middle:
+        #_Ring:
+        #_Pinky:
+        if self.input_hand.lower() == "left":
+            hand = "LEFT_"
+        else:
+            hand = "RIGHT_"
+        finger_labels = {"THUMB": self.thumb_label,
+                         "INDEX": self.index_label,
+                         "MIDDLE": self.middle_label,
+                         "RING": self.ring_label,
+                         "PINKY": self.pinky_label}
+
+        for i, (k, label) in enumerate(finger_labels.items()):
+            finger = hand+k #RIGHT_THUMB
+            label['text'] = finger + ": correct form"
+            for j, (key, value) in enumerate(self.finger_diff.items()):
+                if finger == key:
+                    if value:
+                        label['text'] = finger + ": Should be open"
+                    else:
+                        label['text'] = finger + ": Should be close"
+
+            #finger_labels[finger]['text'] =
+
+        #self.feedback
+        return
+
     def update_feed(self):
-        self.ret, self.frame = self.cap.read()
-        self.img = Image.fromarray(self.frame)
+        self.temp()
+        self.img = Image.fromarray(self.debug_image)
         self.photo.paste(self.img)
-        self.root.after(10, self.update_feed)
-        
+        self.job = self.root.after(10, self.update_feed)
+
+    def check_pred(self):
+        thres = 20
+        pred = None
+        if len(self.predictions) > thres:
+            return True
+        else:
+            return False
+
+    def update_score(self):
+        self.score += 1
+        self.score_label["text"] = "Score: %d" % self.score
+        self.select_question()
+
+
     def go_back(self):
+        if self.job is not None:
+            self.root.after_cancel(self.job)
+            self.job = None
         self.cap.release()
         return
 

@@ -35,25 +35,23 @@ def camera():
         ]
 
     #  ########################################################################
-    mode = 0
+
 
     while True:
 
+        #don't need this anymore
         key = cv2.waitKey(10)
         if key == 27:  # ESC
             break
-        number, mode = select_mode(key, mode)
 
         # Camera capture #####################################################
         ret, image = cap.read()
+        #can edit this
         if not ret:
             break
         image = cv2.flip(image, 1)  # Mirror display
         debug_image = copy.deepcopy(image)
 
-        if mode == 2:
-            save_img(debug_image)
-            mode = 0
         # Detection implementation #############################################################
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         results = hands.process(image)
@@ -71,21 +69,22 @@ def camera():
                 pre_processed_landmark_list = pre_process_landmark(
                     landmark_list)
 
-                # Write to the dataset file
-                logging_csv(number, mode, pre_processed_landmark_list) #get rid of pre history
-
                 # Hand sign classification
                 hand_sign_id = keypoint_classifier(pre_processed_landmark_list)
                 hand_gesture = keypoint_classifier_labels[hand_sign_id]
+                input_hand = handedness.classification[0].label[0:].lower()
 
-
-                pic_image = cv2.imread('img/' + hand_gesture.lower() + '.png', 0)
+                pic_image = cv2.imread('img/%s/%s.png' % (input_hand, hand_gesture.lower()), 0)
                 pic_image = cv2.cvtColor(pic_image, cv2.COLOR_BGR2RGB)
                 results2 = hands.process(pic_image)
-                if results2.multi_handedness != None:
+
+                if results2.multi_handedness is not None:
                     pic, fs2, count2 = fingers(pic_image, results2, mp_hands)
                     pic_details = [pic, fs2, count2]
-                    compare_input(pic_details, image_details)
+                    finger_diff = compare_input(pic_details, image_details, input_hand)
+                else:
+                    # finger_diff = compare_close(image_details[1])
+                    finger_diff = {}
 
                 # Drawing part
                 debug_image = draw_info_text(
@@ -94,26 +93,12 @@ def camera():
                     keypoint_classifier_labels[hand_sign_id]
                 )
 
-        debug_image = draw_info(debug_image, mode, number)
-
         # Screen reflection #############################################################
         cv2.imshow('Hand Gesture Recognition', debug_image)
 
     cap.release()
     cv2.destroyAllWindows()
 
-#might be able to get rid of this
-def select_mode(key, mode):
-    number = -1
-    if 48 <= key <= 57:  # 0 ~ 9
-        number = key - 48
-    if key == 110:  # n
-        mode = 0
-    if key == 107:  # k
-        mode = 1
-    if key == 121:
-        mode = 2
-    return number, mode
 
 def calc_landmark_list(image, landmarks):
     image_width, image_height = image.shape[1], image.shape[0]
@@ -157,15 +142,6 @@ def pre_process_landmark(landmark_list):
 
     return temp_landmark_list
 
-def logging_csv(number, mode, landmark_list):
-    if mode == 0:
-        pass
-    if mode == 1 and (0 <= number <= 9):
-        csv_path = 'model/keypoint_classifier/keypoint.csv'
-        with open(csv_path, 'a', newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow([number, *landmark_list])
-    return
 
 #might be able to get rid of this
 def draw_info_text(image, handedness, hand_sign_text):
@@ -177,20 +153,6 @@ def draw_info_text(image, handedness, hand_sign_text):
                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2,
                    cv2.LINE_AA)
 
-    return image
-
-#might be able to get rid of this
-def draw_info(image, mode, number):
-
-    mode_string = 'Logging Key Point'
-    if mode >= 1:
-        cv2.putText(image, "MODE:" + mode_string, (10, 90),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1,
-                   cv2.LINE_AA)
-        if 0 <= number <= 9:
-            cv2.putText(image, "NUM:" + str(number), (10, 110),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1,
-                       cv2.LINE_AA)
     return image
 
 def fingers(image, results, hands):
@@ -228,11 +190,7 @@ def fingers(image, results, hands):
 
     return output_image, fingers_statuses, count
 
-def save_img(image):
-    cv2.imwrite('img/c1.png', image)
-    print('saving')
-
-def compare_input(img_details, input_details):
+def compare_input(img_details, input_details, hand):
     pic_frame = img_details[0]
     pic_status = img_details[1]
     pic_count = img_details[2]
@@ -241,16 +199,62 @@ def compare_input(img_details, input_details):
     input_status = input_details[1]
     input_count = input_details[2]
 
+
     mis_match = {}
     #false means closed and true means
     for i in pic_status.keys():
+        if hand.upper() in i:
+            if pic_status[i] != input_status[i]:
+                #print(pic_status[i], input_status[i])
+                mis_match[i] = pic_status[i]
+    #print(mis_match)
+    return mis_match
 
-        if pic_status[i] != input_status[i]:
+def compare_close(input_status):
+    fingers_statuses = {'RIGHT_THUMB': False, 'RIGHT_INDEX': False, 'RIGHT_MIDDLE': False, 'RIGHT_RING': False,
+                        'RIGHT_PINKY': False, 'LEFT_THUMB': False, 'LEFT_INDEX': False, 'LEFT_MIDDLE': False,
+                        'LEFT_RING': False, 'LEFT_PINKY': False}
+    mis_match = {}
+    for i in fingers_statuses.keys():
+        if fingers_statuses[i] != input_status[i]:
             #print(pic_status[i], input_status[i])
-            mis_match[i] = pic_status[i]
-    print(mis_match)
-    
+            mis_match[i] = input_status[i]
+
+    return mis_match
+
+def checkfingers(fs):
+    fingers_statuses = {'RIGHT_THUMB': False, 'RIGHT_INDEX': False, 'RIGHT_MIDDLE': False, 'RIGHT_RING': False,
+                        'RIGHT_PINKY': False, 'LEFT_THUMB': False, 'LEFT_INDEX': False, 'LEFT_MIDDLE': False,
+                        'LEFT_RING': False, 'LEFT_PINKY': False}
+    closed = {'RIGHT_THUMB': False, 'RIGHT_INDEX': False, 'RIGHT_MIDDLE': False, 'RIGHT_RING': False,
+                        'RIGHT_PINKY': False, 'LEFT_THUMB': False, 'LEFT_INDEX': False, 'LEFT_MIDDLE': False,
+                        'LEFT_RING': False, 'LEFT_PINKY': False}
+    l_good_status ={'RIGHT_THUMB': False, 'RIGHT_INDEX': False, 'RIGHT_MIDDLE': False, 'RIGHT_RING': False,
+                        'RIGHT_PINKY': False, 'LEFT_THUMB': True, 'LEFT_INDEX': False, 'LEFT_MIDDLE': False,
+                        'LEFT_RING': False, 'LEFT_PINKY': False}
+
+    if l_good_status == fs:
+        print("matches")
+    else:
+        print('not matching')
+
+
+def count_pred(l):
+    count = 0
+    multi = False
+    myset = set(l)
+    for value in myset:
+        if l.count(value) > count:
+            count = l.count(value)
+            res = value
+            multi = False
+        elif l.count(value) == count:
+            multi = True
+            res = False
+
+    return res
+
 #if __name__ == '__main__':
 #    main()
 
-camera()
+#camera()
